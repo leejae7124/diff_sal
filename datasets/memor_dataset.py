@@ -78,22 +78,22 @@ class MEmoRDataset(MetaDataset):
 
         # 加载gt maps需要特别关注它的数据分布
         clip_gt = None
-        if self.mode != "save" and self.mode != "test": #test니까 gt_maps 안 쓰인다.
+        if self.mode != "save" and self.mode != "test":
             gt_sequence_list = get_center_slice(indices, self.gt_length)
-            gt_maps_list = []
-            for gt_index in gt_sequence_list:
-                mid_img_name = '{}_{}_{:03d}.png'.format(vid_name, vid_index, gt_index)
-                gt_index_path = os.path.join(path_annt, mid_img_name)
-                gt_maps_list.append(self.load_gt_PIL(gt_index_path))
-            gt_maps = torch.stack(gt_maps_list, 0).permute(1, 0, 2, 3).squeeze(1)
+            gt_maps = 0
             clip_gt = gt_maps
-
 
         data['rgb'] = clip_img
         data["video_id"] = file_name
         data["video_index"] = file_name     # 用于预测
-        data["gt_index"] = torch.tensor(gt_sequence_list)
-        target['salmap'] = clip_gt
+        data["gt_index"] =  torch.tensor(gt_sequence_list)
+
+        if self.mode == 'val':
+            target['salmap'] = clip_gt
+        elif self.mode == "test":
+            target['salmap'] = 0
+        else:
+            target['salmap'] = clip_gt
 
 
         return data, target
