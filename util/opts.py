@@ -26,7 +26,7 @@ def parse_opts():
                         action='store_true',
                         help='If True, use the wandb')
     parser.add_argument('--data_type',
-                        choices=["dhf1k", "holly", "ucf", "av_data"],
+                        choices=["dhf1k", "holly", "ucf", "memor", "av_data"],
                         default='dhf1k',
                         help='If True, use the dhf1k.')
     parser.add_argument('--lr_scheduler',

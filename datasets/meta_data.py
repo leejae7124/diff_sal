@@ -24,11 +24,13 @@ class MetaDataset(data.Dataset):
         self.alternate = alternate
         self.img_size = img_size
 
+        #img_transform 과정: 1. 입력 이미지를 지정된 사이즈로 변경 2. 이미지를 PyTorch tensor로 변환 3. tensor의 각 채널에 대해 정규화 수행
         self.img_transform = transforms.Compose([
             transforms.Resize(img_size),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
+        #sal_transform 과정: 1. 입력 이미지를 지정된 사이즈로 변경 2. 이미지를 PyTorch tensor로 변환
         self.sal_transform = transforms.Compose([
             transforms.Resize(img_size),
             transforms.ToTensor(),
@@ -85,7 +87,7 @@ class MetaDataset(data.Dataset):
 
         return torch.from_numpy(np.asarray(gt_maps_list)/255.0)
 
-    def get_video_list(self, mode):
+    def get_video_list(self, mode): #train/test path 나누고, 이를 반환하네
         if mode == 'train': 
             path = '{}/{}'.format(self.path_data, 'training')
         else: 

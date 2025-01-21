@@ -9,6 +9,7 @@ from models.saliency_decoder.sal_unet import SalUNet
 from datasets.dhf1k_data import DHF1KDatasetMultiFrames
 from datasets.holly2wood_dataset import HollyDataset
 from datasets.ucf_dataset import UCFDataset
+from datasets.memor_dataset import MEmoRDataset
 
 
 with open('cfgs/diffusion.yml', "r") as f:
@@ -17,7 +18,8 @@ with open('cfgs/diffusion.yml', "r") as f:
 new_config = dict2namespace(diff_config)
 
 len_snippet = 32
-data_type = 'dhf1k'
+# data_type = 'dhf1k'
+data_type = 'memor'
 gt_length=1
 img_size = (224, 384)
 
@@ -27,7 +29,7 @@ config = dict(
     visual_net=dict(
         type=MViT,
         arch="small",
-        pretrained="/mnt/data4_8T/datasets/STAViS/data/pretrained_models/mvit-small-p244_16x4x1_kinetics400-rgb.pth",
+        pretrained="../mvit-small-p244_16x4x1_kinetics400-rgb_20221021-9ebaaeed.pth", #수정 필!!!!!!!!!!!!!!
         out_scales=[0, 1, 2, 3]),
     spatiotemp_net=None,
     decoder_net=dict(
@@ -69,7 +71,7 @@ config = dict(
         stride_q=[1, 1, 1, 1],
     ))
 
-data_dict = {
+data_dict = { #수정 필요
     'dhf1k': {
         'type': DHF1KDatasetMultiFrames,
         'path': 'VideoSalPrediction/DHF1k_extracted',
@@ -82,6 +84,10 @@ data_dict = {
         'type': UCFDataset,
         'path': 'VideoSalPrediction/ucf',
     },
+    'memor': {
+        'type': MEmoRDataset,
+        'path': 'VideoSalPrediction/memor',
+    }
 }
 
 data = dict(train=dict(

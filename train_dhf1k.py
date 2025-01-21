@@ -68,24 +68,24 @@ def main_worker(gpu, opt, config=None):
     if opt.gpu is not None:
         print("Use GPU: {} for training".format(opt.gpu))
 
-    shutil.copy(opt.config_file, opt.root_path)
-    torch.manual_seed(opt.manual_seed)
+    shutil.copy(opt.config_file, opt.root_path) #root path에 config 파일(visual.py) 복사
+    torch.manual_seed(opt.manual_seed) #난수 생성기의 seed를 설정하여 고정시킴. 항상 같은 결과를 보장하기 위해
 
     wad = None
     if opt.wandb:
         wad = wandb_init(opt)
     result_path = "results"
     weight_path = "weights"
-    opt.result_path = os.path.join(opt.root_path, result_path)
-    opt.weight_path = os.path.join(opt.root_path, weight_path)
+    opt.result_path = os.path.join(opt.root_path, result_path) #결과 경로
+    opt.weight_path = os.path.join(opt.root_path, weight_path) #가중치 경로
 
-    os.makedirs(opt.result_path, exist_ok=True)
-    os.makedirs(opt.weight_path, exist_ok=True)
+    os.makedirs(opt.result_path, exist_ok=True) #폴더 생성
+    os.makedirs(opt.weight_path, exist_ok=True) #폴더 생성
 
-    runner = DiffusionTrainer(opt, config)
+    runner = DiffusionTrainer(opt, config) #객체 생성
     if opt.train:
         runner.train()
-    if opt.test:
+    if opt.test: #테스트 모드
         runner.test(save_img=True)
 
 

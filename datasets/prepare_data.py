@@ -25,21 +25,22 @@ def get_training_loader(opt):
 
 
 def get_val_loader(opt):
-    config_file = Config.fromfile(opt.config_file) 
-    dataset = build_from_cfg(config_file["data"]["val"], DATASET_REGISTRY) 
+    config_file = Config.fromfile(opt.config_file) #visual.py, memor로 설정. config_file은 딕셔너리처럼 사용할 수 있는 객체로 변환된다. data 딕셔너리인 듯?
+    dataset = build_from_cfg(config_file["data"]["val"], DATASET_REGISTRY) #DATASET_REGISTRY: 데이터셋을 관리하는 Registry 객체로, 데이터셋을 동적으로 생성할 수 있다.
     val_sampler = None
-    if opt.multiprocessing_distributed:
+    if opt.multiprocessing_distributed: #분산 환경에서 데이터를 균등하게 분배: 다중 gpu 환경에서는 데이터셋을 모든 gpu에 균등하게 분배한다. 각 gpu는 할당된 데이터셋의 일부를 독립적으로 처리한다.
         val_sampler = torch.utils.data.distributed.DistributedSampler(dataset)
     val_loader = torch.utils.data.DataLoader(dataset,
                                         batch_size=opt.batch_size,
                                         shuffle=False,
-                                        num_workers=opt.n_threads,
+                                        num_workers=opt.n_threads, #멀티 스레드 데이터 로딩: 단일 프로세스에서 데이터 로드와 전처리 속도를 향상시키기 위해 사용. gpu 갯수와 무관.
+                                                                    #데이터를 로드하고 전처리하는 cpu 스레드 수를 말한다.
                                         drop_last=True,
                                         pin_memory=False,
                                         sampler=val_sampler,
                                         persistent_workers=opt.n_threads>0)
     print(f"using {config_file.data_type} val dataset!")
-    return val_loader
+    return val_loader #검증 데이터를 배치 단위로 처리할 수 있도록 준비
 
 def get_av_testset(data_config, is_training=True): 
     cur_index = data_config["index"] 

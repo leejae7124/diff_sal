@@ -6,9 +6,8 @@ from torch.utils.data import DataLoader
 from datasets.meta_data import MetaDataset
 from util.registry import DATASET_REGISTRY
 
-
 DATASET_REGISTRY.register_module()
-class UCFDataset(MetaDataset):
+class MEmoRDataset(MetaDataset):
 
     def __init__(self,
                  path_data,
@@ -18,7 +17,7 @@ class UCFDataset(MetaDataset):
                  gt_length=1,
                  alternate=1
                  ):
-        super(UCFDataset, self).__init__(path_data, len_snippet, mode, img_size, alternate, gt_length)
+        super(MEmoRDataset, self).__init__(path_data, len_snippet, mode, img_size, alternate, gt_length)
 
         self.vid_list = self.get_video_list(mode) #memor 재작성 필요. mode 필요 없음
 
@@ -42,34 +41,34 @@ class UCFDataset(MetaDataset):
                 self.list_num_frame.append((v, tmp_video_len - self.len_snippet))
                 self.list_video_frames[v] = tmp_video_len
 
-        print(f"UCF {mode} dataset loaded! {len(self.list_num_frame)} data items!")
+        print(f"MEmoR {mode} dataset loaded! {len(self.list_num_frame)} data items!")
         #정리: 초기화 할 때, 프레임을 로드한다.
 
     def __getitem__(self, idx):
-        (file_name, start_idx) = self.list_num_frame[idx] #각 비디오의 스니펫을 시작하는 프레임 인덱스와 비디오 이름이 튜플로 담겨있음. ("video1", 0), ("video1", 10), ...
+        (file_name, start_idx) = self.list_num_frame[idx] #각 비디오의 스니펫(len_snippet = 32)을 시작하는 프레임 인덱스와 비디오 이름이 튜플로 담겨있음. ("video1", 0), ("video1", 32), ...
 
         path_clip = os.path.join(self.path_data, file_name, "images") #VideoSalPrediction/ucf/testing/video1/images
         path_annt = os.path.join(self.path_data, file_name, "maps") #VideoSalPrediction/ucf/testing/video1/maps
 
-        data = {'rgb': []}
+        data = {'rgb': []} #모델의 입력 데이터(dictionary)
         target = {'salmap': []}
 
         # TODO 继续测试在16帧参数的数据集上的效果
-        if self.len_snippet > 16: #16개의 프레임만 선택한다.
+
+        if self.len_snippet > 16: #16개의 프레임만 선택한다. 1. alternate = 1: 처음부터 16개 프레임 2. alternate = 2: 1개씩 뛰어넘으며 16개의 프레임
             frame_lens = 16
-            indices = [start_idx + self.alternate * i + 1 for i in range(frame_lens)] #하나씩 건너뛰면서 선택함. 시간적 길이는 동일하지만 sampling rate를 다르게 처리!
+            indices = [start_idx + self.alternate * i for i in range(frame_lens)]
         else:
-            indices = [start_idx + self.alternate * i + 1 for i in range(self.len_snippet) ]
+            indices = [start_idx + self.alternate * i for i in range(self.len_snippet) ]
             
-        clip_img = [] #프레임을 담는다.
-        vid_name, vid_index =file_name.split("-")[:-1], file_name.split("-")[-1]
-        vid_name = file_name.strip(f"-{vid_index}")
-        median = int(np.mean(np.array(indices)))
+        clip_img = []
+        img_list = sorted(os.listdir(path_clip))
         for i in indices:
-            img = Image.open(os.path.join(path_clip, '{}_{}_{:03d}.png'.format(vid_name, vid_index, i))).convert('RGB') #프레임 파일(이름) 처리
+            img_name = img_list[i]
+            img = Image.open(os.path.join(path_clip, img_name)).convert('RGB')
             clip_img.append(self.img_transform(img))
-        clip = torch.stack(clip_img, 0).permute(1, 0, 2, 3) #데이터의 맨 앞에 차원을 추가. N: 스니펫의 길이를 추가로 한다. -> 모델의 입력에 맞게 조정하는 것.
-        clip_img = torch.FloatTensor(clip) #float 형태로 변환
+        clip = torch.stack(clip_img, 0).permute(1, 0, 2, 3) #데이터의 맨 앞(0번)에 차원 추가: 스니펫의 길이(16)를 추가한다.
+        clip_img = torch.FloatTensor(clip) #Float 형태로 변환
 
         def get_center_slice(arr, length):
             center = len(arr) // 2  # 获取数组的中心位置索引
@@ -79,7 +78,7 @@ class UCFDataset(MetaDataset):
 
         # 加载gt maps需要特别关注它的数据分布
         clip_gt = None
-        if self.mode != "save" and self.mode != "test":
+        if self.mode != "save" and self.mode != "test": #test니까 gt_maps 안 쓰인다.
             gt_sequence_list = get_center_slice(indices, self.gt_length)
             gt_maps_list = []
             for gt_index in gt_sequence_list:
@@ -88,6 +87,7 @@ class UCFDataset(MetaDataset):
                 gt_maps_list.append(self.load_gt_PIL(gt_index_path))
             gt_maps = torch.stack(gt_maps_list, 0).permute(1, 0, 2, 3).squeeze(1)
             clip_gt = gt_maps
+
 
         data['rgb'] = clip_img
         data["video_id"] = file_name
@@ -98,12 +98,11 @@ class UCFDataset(MetaDataset):
 
         return data, target
 
-
 if __name__ == '__main__':
     
-    train_data = UCFDataset(path_data="VideoSalPrediction/ucf",
-                     len_snippet=32, 
-                     mode="test")
+    train_data = MEmoRDataset(path_data="VideoSalPrediction/memor",
+                     len_snippet=32, #len_snippet: 한 번에 처리할 프레임의 개수
+                     mode="test") #수정이 필요할 듯?
 
     tmp_data = train_data.__getitem__(0)
     print(train_data.__len__())

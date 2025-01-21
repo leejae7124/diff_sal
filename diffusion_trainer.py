@@ -26,7 +26,7 @@ from datasets.prepare_data import (
 
 
 class DiffusionTrainer(object):
-    def __init__(self, args, config, device=None):
+    def __init__(self, args, config, device=None): #config: diffusion.yml
         self.args = args
         self.config = config
         if device is None:
@@ -37,14 +37,14 @@ class DiffusionTrainer(object):
             )
         self.device = device
 
-        self.training_target = config.training.training_target
+        self.training_target = config.training.training_target #training_target: x0(원본 이미지)
         assert self.training_target in ["x0", "noise"]
 
         self.model, _ = generate_av_model(args)
         print(self.model)
 
-        self.model_var_type = config.model.var_type
-        betas = get_beta_schedule(
+        self.model_var_type = config.model.var_type #분산 타입 지정
+        betas = get_beta_schedule( #베타 스케줄 설정
             beta_schedule=config.diffusion.beta_schedule,
             beta_start=config.diffusion.beta_start,
             beta_end=config.diffusion.beta_end,
@@ -67,7 +67,7 @@ class DiffusionTrainer(object):
         self.posterior_variance = posterior_variance
         self.posterior_log_variance_clipped = torch.log(
             torch.maximum(posterior_variance, torch.tensor(1e-20))
-        )
+        ) #전체적인 diffusion model 파라미터를 설정하는 듯?
         self.posterior_mean_coef1 = betas * torch.sqrt(alphas_hat) / (1.0 - alphas_hat)
         self.posterior_mean_coef2 = (
             (1.0 - alphas_hat_prev) * torch.sqrt(alphas) / (1.0 - alphas_hat)
@@ -715,21 +715,22 @@ class DiffusionTrainer(object):
     def test(self, epoch=0, step=0, val_logger=None, save_img=True, is_testing=True):
         """test visual dataset"""
         print("Start testing!!!")
-        args, config = self.args, self.config
+        #root_path: experiments_on_dhf1k/visual
+        args, config = self.args, self.config #config는 디퓨전 설정
 
-        result_path = f"{args.data_type}_test_samplings/multi"
+        result_path = f"{args.data_type}_test_samplings/multi" #경로 생성? dhf1k(data_type)_test_samplings/multi
         result_path = os.path.join(args.root_path, result_path)
-        weight_path = os.path.join(args.root_path, "weights", "best.pth")
+        weight_path = os.path.join(args.root_path, "weights", "best.pth") #가중치 경로 생성
         os.makedirs(result_path, exist_ok=True)
 
         args.pretrain_path = weight_path
         if is_testing and args.pretrain_path.strip() != "":
             states = torch.load(args.pretrain_path, map_location=torch.device("cpu"))
-            msg = self.model.load_state_dict(states["state_dict"], strict=0)
+            msg = self.model.load_state_dict(states["state_dict"], strict=0) #모델 가중치 로드
             print("testing: {}/{}".format(args.pretrain_path, msg))
 
         name_list = ["main", "cc", "sim", "nss", "total"]
-        loss_metrics = AverageMeterList(name_list=name_list)
+        loss_metrics = AverageMeterList(name_list=name_list) #계산을 위해 필요한 것 같음
         val_loader = get_val_loader(args)
         for i, (data, targets) in enumerate(val_loader):
             imgs, x_noise = self.prepare_data(data, targets, is_training=False)

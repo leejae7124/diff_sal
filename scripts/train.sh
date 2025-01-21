@@ -1,10 +1,10 @@
 batch_size=4
 gpu_ids=0,1,2,3
-gpu_num=4
+gpu_num=2
 n_threads=4
 lr=1e-4
 n_epochs=3
-dt="dhf1k" # dhf1k, ucf holly
+dt="memor" # dhf1k, ucf holly
 eval_flag=0
 
 experiment_name=visual
