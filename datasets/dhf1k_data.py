@@ -59,6 +59,7 @@ class DHF1KDatasetMultiFrames(MetaDataset):
 
     def __getitem__(self, idx):
         (file_name, start_idx) = self.list_num_frame[idx]
+        print("file name: ", file_name)
 
         path_clip = os.path.join(self.img_path, file_name)
         path_annt = os.path.join(self.ann_path, file_name)

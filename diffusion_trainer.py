@@ -76,11 +76,13 @@ class DiffusionTrainer(object):
         self.num_timesteps = betas.shape[0]
 
     def prepare_data(self, data, targets, is_training=True):
+
+        print(targets)
         if type(targets["salmap"]) == dict:
             targets["salmap"] = {
                 key: targets["salmap"][key].cuda() for key in targets["salmap"]
             }
-        else:
+        else: #test일 때. 텐서를 gpu로 이동하고 float형으로 변환
             targets["salmap"] = targets["salmap"].cuda()
             targets["salmap"] = targets["salmap"].float()
 
@@ -116,7 +118,20 @@ class DiffusionTrainer(object):
 
             return imgs, x, x_noisy, t_tensor, noise
         else:
-            noise = torch.randn(sal_maps.shape).cuda()
+            #x.shape = (4, 3, 16, 224, 384) (배치 사이즈, 채널, frame 수, H, W)
+            batch_size = data['rgb'].shape[0]  # 배치 크기
+            height = data['rgb'].shape[3]     # 이미지 높이
+            width = data['rgb'].shape[4]      # 이미지 너비
+
+            # 채널 수를 1로 설정 (saliency map은 그레이스케일이라 채널이 1)
+            channels = 1
+
+            # 노이즈 생성
+            noise = torch.randn(batch_size, channels, height, width).cuda()
+
+            # print("noise shape:", noise.shape) #랜덤 노이즈 텐서 생성. sal_maps.shape를 사용하는 이유는 모델의 입력 크기에 맞추기 위해
+            # noise = torch.randn(imgs.shape[0], 1, imgs.shape[2], imgs.shape[3]).cuda()
+  # imgs 크기를 기준으로 노이즈 생성 #랜덤 노이즈 텐서 생성. sal_maps.shape를 사용하는 이유는 모델의 입력 크기에 맞추기 위해
             return imgs, noise
 
     def q_sample(self, x_start, t, noise=None):
@@ -128,6 +143,7 @@ class DiffusionTrainer(object):
             x_start (torch.Tensor): Represents the original image (x_0).
             t (int): The timestep that measures the amount of noise to add.
         """
+        
         if noise is None:
             noise = torch.randn_like(x_start)
 
@@ -437,25 +453,29 @@ class DiffusionTrainer(object):
         ) / self.sqrt_recipm1_alphas_hat[t]
 
     @torch.no_grad()
-    def sample_ddim(self, x, img=None, audio_cond=None):
+    def sample_ddim(self, x, img=None, audio_cond=None): #이걸 수행하게 됨.
         """ddim sampling"""
+        #x = 초기 노이즈 텐서. 논문에서 St
+        #img: visual conditions. 슈도코드에서 I.
 
-        skip = self.num_timesteps // self.config.sampling.timesteps
-        seq = range(0, self.num_timesteps, skip)
-        eta = self.config.sampling.eta
+        skip = self.num_timesteps // self.config.sampling.timesteps #건너뛸 간격. timesteps=1로 설정하여, sampling을 단 한 번! 수행하겠다는 의미. skip은 1000이 된다.
+        seq = range(0, self.num_timesteps, skip) #seq: reverse process에서 거치는 timesteps sequence. 0부터 num_timesteps까지의 값.
+        eta = self.config.sampling.eta #0으로 설정되어서 랜덤 노이즈 X
 
         tmp_img = copy.deepcopy(img)
-        n = x.size(0)
-        seq_next = [-1] + list(seq[:-1])
-        for time, time_next in zip(reversed(seq), reversed(seq_next)):
-            t_tensor = torch.full((n,), time, dtype=torch.int64, device=self.device)
+        n = x.size(0) #배치 크기(noisy image의 첫 차원 크기)
+        seq_next = [-1] + list(seq[:-1]) #다음 스텝
+
+        #Reverse process 시작
+        for time, time_next in zip(reversed(seq), reversed(seq_next)): #현재 time step과 다음 time step의 쌍을 가져온다.
+            t_tensor = torch.full((n,), time, dtype=torch.int64, device=self.device) #현재 time step "t"를 모델에 전달할 텐서로 생성한다.
             img = copy.deepcopy(tmp_img)
 
             alpha = self.alphas_hat[time]
             alpha_next = self.alphas_hat[time_next]
-
-            if self.training_target == "x0":
-                x_start = self.model.module.decoder_net(x, t_tensor, img, audio_cond)
+            #x.shape = (4, 3, 16, 224, 384) (배치 사이즈, 채널, frame 수, H, W)
+            if self.training_target == "x0": #이렇게 설정되어 있음. x0는 원본 이미지로, 원본 이미지를 예측하겠다.
+                x_start = self.model.module.decoder_net(x, t_tensor, img, audio_cond)#Saliency-UNet이 x0를 예측한다.
                 pred_noise = self.predict_noise_from_start(x, time, x_start)
             else:
                 pred_noise = self.model.module.decoder_net(x, t_tensor, img, audio_cond)
@@ -545,21 +565,23 @@ class DiffusionTrainer(object):
     @torch.no_grad()
     def sample_image(self, x, img=None, audio=None, base_samples=None):
         classes = None
-        if base_samples is None:
+        #base_samples: 
+        if base_samples is None: #base_samples: 샘플링에 사용되는 조건이나 초기 상태. 여기서는 명시X
             if classes is None:
                 model_kwargs = {}
             else:
                 model_kwargs = {"y": classes}
         else:
             model_kwargs = {"y": base_samples["y"], "low_res": base_samples["low_res"]}
+            #model_kwargs: 모델의 추가 입력 또는 조건 데이터를 포함하는 딕셔너리 형태의 변수
 
         if self.model.module.audio_net:
             audio_feat, audio_feat_embed = self.model.module.forward_vggish(audio)
         else:
             audio_feat, audio_feat_embed = None, None
 
-        if self.model.module.visual_net:
-            vis_list = self.model.module.visual_net(img)
+        if self.model.module.visual_net: #vis_list: visual features list
+            vis_list = self.model.module.visual_net(img) #visualnet으로 img 처리
         else:
             vis_list = [
                 torch.randn((audio_feat.shape[0], 768, 8, 7, 12), device=img.device),
@@ -569,10 +591,12 @@ class DiffusionTrainer(object):
             ]
         tmp_feat_list = copy.deepcopy(vis_list)
 
-        if self.config.sampling.sample_type == "ddim":
-            x = self.sample_ddim(x, tmp_feat_list, audio_feat_embed)
+        if self.config.sampling.sample_type == "ddim": #이걸로 되어있음. 샘플링(Revrese process) 타입: DDIM으로 빠른 샘플링 수행
 
-        elif self.config.sampling.sample_type == "ddpm":
+            x = self.sample_ddim(x, tmp_feat_list, audio_feat_embed)
+            
+
+        elif self.config.sampling.sample_type == "ddpm": #DDPM은 t step에 대하여 모두 수행
             skip = self.num_timesteps // self.config.sampling.timesteps
             seq = range(0, self.num_timesteps, skip)
             for t in reversed(seq):
@@ -728,26 +752,26 @@ class DiffusionTrainer(object):
             states = torch.load(args.pretrain_path, map_location=torch.device("cpu"))
             msg = self.model.load_state_dict(states["state_dict"], strict=0) #모델 가중치 로드
             print("testing: {}/{}".format(args.pretrain_path, msg))
-
         name_list = ["main", "cc", "sim", "nss", "total"]
         loss_metrics = AverageMeterList(name_list=name_list) #계산을 위해 필요한 것 같음
         val_loader = get_val_loader(args)
+
         for i, (data, targets) in enumerate(val_loader):
             imgs, x_noise = self.prepare_data(data, targets, is_training=False)
             self.model.eval()
 
-            pred = self.sample_image(x_noise, img=imgs)
+            pred = self.sample_image(x_noise, img=imgs) #여기까지 옴
             pred = inverse_data_transform(config, pred)
 
-            total_loss = get_kl_cc_sim_loss_wo_weight(
-                config, pred, targets["salmap"].to(pred.device)
-            )
-            loss_metrics.update(total_loss)
+            # total_loss = get_kl_cc_sim_loss_wo_weight(
+            #     config, pred, targets["salmap"].to(pred.device)
+            # )
+            # loss_metrics.update(total_loss)
 
-            if self.args.rank == 0 and i % self.config.training.log_freq == 1:
-                self.print_val_info(
-                    epoch, i, val_loader, step, loss_metrics, is_print=True, logger=None
-                )
+            # if self.args.rank == 0 and i % self.config.training.log_freq == 1:
+            #     self.print_val_info(
+            #         epoch, i, val_loader, step, loss_metrics, is_print=True, logger=None
+            #     )
 
             if save_img:
                 self.save_img(data, pred, result_path)
@@ -904,10 +928,16 @@ class DiffusionTrainer(object):
             pred (_type_): _description_
             save_path (_type_): _description_
         """
+        # print("data!!!", data.items())
         video_ids = data["video_index"]
-        gt_indexes = data["gt_index"].cpu().numpy()
+        frame_ids = data["video_id"]
+        print("id!! ", data["video_id"])
+        # print("video_ids: ", video_ids)
+  
+        # gt_indexes = data["gt_index"].cpu().numpy()
         pred = pred.detach().cpu().numpy()
-        gt_indexes = gt_indexes.reshape(pred.shape[0], 1)
+        
+        # gt_indexes = gt_indexes.reshape(pred.shape[0], 1)
 
         if av_data:
             data_convert_dict = {
@@ -919,8 +949,10 @@ class DiffusionTrainer(object):
                 "SumMe": "summe",
             }
 
-        assert pred.shape[0] == len(video_ids) == len(gt_indexes)
-        for i, (img, vid, gid) in enumerate(zip(pred, video_ids, gt_indexes)):
+        # assert pred.shape[0] == len(video_ids) == len(gt_indexes)
+
+        assert pred.shape[0] == len(video_ids) == len(frame_ids)
+        for i, (img, vid, fid) in enumerate(zip(pred, video_ids, frame_ids)):
             if av_data:
                 vid = str(
                     data_convert_dict[vid.split("/")[0]] + "/" + vid.split("/")[-1]
@@ -928,9 +960,11 @@ class DiffusionTrainer(object):
                 img_name = "pred_sal_{0:06d}.jpg".format(int(gid))
             else:
                 vid = str(vid)
-                img_name = str(int(gid)) + ".png"
+                # img_name = str(int(gid)) + ".png"
+                img_name = str(fid)
 
             save_path = os.path.join(save_root, vid)
+            print("save path: ", save_path)
             os.makedirs(save_path, exist_ok=True)
             sal_img = normalize_data(img.transpose(1, 2, 0))
             cv2.imwrite("{}/{}".format(save_path, img_name), sal_img)

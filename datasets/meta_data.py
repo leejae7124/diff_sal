@@ -95,5 +95,6 @@ class MetaDataset(data.Dataset):
 
         video_list = os.listdir(path)
         video_list = [v for v in video_list]
+        print("vd list: ", video_list)
 
         return video_list

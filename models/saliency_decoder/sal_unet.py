@@ -289,8 +289,11 @@ class SalUNet(nn.Module):
             [4, 384, 1, 14, 24]
             [4, 192, 1, 28, 48]
         """
+        print("Before conv_in: ", x.shape)  # 초기 x 크기
         feat_x = self.conv_in(x)
+        print("After conv_in: ", feat_x.shape)  # conv_in 후 x 크기
         feat_x = self.down1(feat_x)
+        print("After down1: ", feat_x.shape)  # down1 후 x 크기
 
         feat_x_list = []
         for block in self.res_encoder:
@@ -307,6 +310,8 @@ class SalUNet(nn.Module):
         temb = self.temb.dense[1](temb)
 
         x_scale_list = self.noise_downsample(x, temb)
+        
+
 
         if self.image_based:
             for i, feat in enumerate(feat_list):
@@ -314,7 +319,7 @@ class SalUNet(nn.Module):
                     continue
 
                 if feat.shape[-2:] == x_scale_list[i].shape[-2:]:
-                    feat_list[i] = torch.cat([feat_list[i], x_scale_list[i]], dim=2)
+                    feat_list[i] = torch.cat([feat_list[i], x_scale_list[i]], dim=2) #여기에서 오류.
 
         pred = self.invpt_decoder(feat_list, audio_feat_list)
         pred = self.logits(pred)

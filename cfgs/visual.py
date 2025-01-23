@@ -103,7 +103,7 @@ data = dict(train=dict(
         type=data_dict[data_type]['type'],
         path_data=data_dict[data_type]['path'],
         len_snippet=len_snippet,
-        mode="val",
+        mode="test",
         img_size=img_size,
         alternate=1,
         gt_length=gt_length,

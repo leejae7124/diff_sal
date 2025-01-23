@@ -45,10 +45,15 @@ class MEmoRDataset(MetaDataset):
         #정리: 초기화 할 때, 프레임을 로드한다.
 
     def __getitem__(self, idx):
-        (file_name, start_idx) = self.list_num_frame[idx] #각 비디오의 스니펫(len_snippet = 32)을 시작하는 프레임 인덱스와 비디오 이름이 튜플로 담겨있음. ("video1", 0), ("video1", 32), ...
 
+        (file_name, start_idx) = self.list_num_frame[idx] #각 비디오의 스니펫(len_snippet = 32)을 시작하는 프레임 인덱스와 비디오 이름이 튜플로 담겨있음. ("video1", 0), ("video1", 32), ...
+        # for idx, (file_name, start_idx) in enumerate(self.list_num_frame):
+        #     print(f"Index {idx}: File {file_name}, Start Index {start_idx}")
+
+        # print("file name!!!!! ", file_name)
         path_clip = os.path.join(self.path_data, file_name, "images") #VideoSalPrediction/ucf/testing/video1/images
         path_annt = os.path.join(self.path_data, file_name, "maps") #VideoSalPrediction/ucf/testing/video1/maps
+        # print(file_name, "  FFFFFFFFFFFFFFFilename")
 
         data = {'rgb': []} #모델의 입력 데이터(dictionary)
         target = {'salmap': []}
@@ -58,17 +63,22 @@ class MEmoRDataset(MetaDataset):
         if self.len_snippet > 16: #16개의 프레임만 선택한다. 1. alternate = 1: 처음부터 16개 프레임 2. alternate = 2: 1개씩 뛰어넘으며 16개의 프레임
             frame_lens = 16
             indices = [start_idx + self.alternate * i for i in range(frame_lens)]
+            # print("indices: ", indices, file_name)
         else:
             indices = [start_idx + self.alternate * i for i in range(self.len_snippet) ]
             
         clip_img = []
         img_list = sorted(os.listdir(path_clip))
+        # print(len(img_list), path_clip)
         for i in indices:
             img_name = img_list[i]
+            # print("img name: ",img_name)
+            # print("img name ", img_name)
             img = Image.open(os.path.join(path_clip, img_name)).convert('RGB')
             clip_img.append(self.img_transform(img))
         clip = torch.stack(clip_img, 0).permute(1, 0, 2, 3) #데이터의 맨 앞(0번)에 차원 추가: 스니펫의 길이(16)를 추가한다.
         clip_img = torch.FloatTensor(clip) #Float 형태로 변환
+        
 
         def get_center_slice(arr, length):
             center = len(arr) // 2  # 获取数组的中心位置索引
@@ -79,14 +89,18 @@ class MEmoRDataset(MetaDataset):
         # 加载gt maps需要特别关注它的数据分布
         clip_gt = None
         if self.mode != "save" and self.mode != "test":
+            print(self.mode)
             gt_sequence_list = get_center_slice(indices, self.gt_length)
-            gt_maps = 0
+            gt_maps = self.get_multi_gt_maps2(gt_sequence_list, path_annt) # (len(seq), 224, 384)
             clip_gt = gt_maps
 
         data['rgb'] = clip_img
-        data["video_id"] = file_name
+        data["video_id"] = img_name
         data["video_index"] = file_name     # 用于预测
-        data["gt_index"] =  torch.tensor(gt_sequence_list)
+        # print("id, index : ", data["video_id"], data["video_index"])
+        if self.mode != "test":
+            data["gt_index"] = torch.tensor(gt_sequence_list)
+
 
         if self.mode == 'val':
             target['salmap'] = clip_gt
@@ -118,4 +132,4 @@ if __name__ == '__main__':
     for batch, target in data_loader:
         # print(batch["rgb"].shape)
         # print(target["salmap"].shape)
-        print(batch["video_id"], batch["gt_index"])
+        print("test!!!!!!!!!!!!!!",batch["video_id"], batch["gt_index"])
