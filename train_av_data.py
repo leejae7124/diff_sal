@@ -88,9 +88,11 @@ def main_worker(gpu, opt, config=None):
     if opt.test:
         runner.test_av_data(save_img=True)
 
-
+# config: audio_visual.py
 def main(opt, config=None):
     mp.set_start_method("spawn")
+    print(f"Batch size!!!!!!!!!!!!!!!!!: {opt.batch_size}")
+
     main_worker(opt.gpu, opt, config)
 
 

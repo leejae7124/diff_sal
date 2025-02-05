@@ -52,7 +52,7 @@ def parse_opts():
         'Initial learning rate (divided by 10 while training by lr scheduler)')
 
     parser.add_argument('--batch_size',
-                        default=128,
+                        default=32, #원래 128
                         type=int,
                         help='Batch size dependent on GPUs memory')
 

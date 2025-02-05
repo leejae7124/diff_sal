@@ -1,6 +1,6 @@
 {
-	"dataset":"diem",
-	"index":"split1",
+	"dataset":"memor",
+	"index":"split4",
 	"batch_size":30,
 	"n_threads":6,
 
@@ -10,6 +10,7 @@
 	"video_path_summe": "./data/video_frames/SumMe",
 	"video_path_etmd": "./data/video_frames/ETMD_av",
 	"video_path_avad": "./data/video_frames/AVAD",
+	"video_path_memor": "./data/video_frames/MEmoR",
 
 	"audio_path_diem": "./data/video_audio/DIEM",
 	"audio_path_coutrot1": "./data/video_audio/Coutrot_db1",
@@ -17,6 +18,7 @@
 	"audio_path_summe": "./data/video_audio/SumMe",
 	"audio_path_etmd": "./data/video_audio/ETMD_av",
 	"audio_path_avad": "./data/video_audio/AVAD",
+	"audio_path_memor": "./data/video_audio/MEmoR",
 
 	"split1": {
 		"annotation_path_diem_train": "./data/fold_lists/DIEM_list_train_fps.txt",
@@ -60,6 +62,9 @@
 		"annotation_path_diem_test": "./data/fold_lists/DIEM_list_test_fps.txt",
 		"annotation_path_coutrot1_test": "./data/fold_lists/Coutrot_db1_list_test_3_fps.txt"
 	},
+	"split4": {
+		"annotation_path_memor_test": "./data/fold_lists/MEmoR_list_test_fps.txt"
+	},
 
 	"salmap_path_diem": "./data/annotations/DIEM",
 	"salmap_path_coutrot1": "./data/annotations/Coutrot_db1",
@@ -67,6 +72,7 @@
 	"salmap_path_summe": "./data/annotations/SumMe",
 	"salmap_path_etmd": "./data/annotations/ETMD_av",
 	"salmap_path_avad": "./data/annotations/AVAD",
+	"salmap_path_memor": "./data/annotations/MEmoR",
 
 	"sample_size": [384, 224],
 	"sample_duration": 16,

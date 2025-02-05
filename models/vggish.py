@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvggish
 # from util.registry import OBJECT_REGISTRY
 
 class VGGish_v2(nn.Module):
@@ -117,9 +118,10 @@ class VGGish(VGG):
         }
 
         if pretrained:
+            vggish_model = torchvggish.vggish()
             # state_dict = hub.load_state_dict_from_url(model_urls['vggish'], progress=progress)
-            state_dict = torch.load(model_urls['vggish'])
-            print(model_urls['vggish'])
+            state_dict = vggish_model.state_dict()
+            print("Loaded pretrained VGGish model using torchvggish.")
             super().load_state_dict(state_dict)
 
 

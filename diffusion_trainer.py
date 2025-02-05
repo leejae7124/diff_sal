@@ -3,6 +3,8 @@ import time
 import cv2, json
 import numpy as np
 import copy
+import ast
+from pprint import pprint
 import torch
 from model import generate_av_model
 from models.sal_losses import get_kl_cc_sim_loss_wo_weight, get_lossv2
@@ -757,7 +759,7 @@ class DiffusionTrainer(object):
         val_loader = get_val_loader(args)
 
         for i, (data, targets) in enumerate(val_loader):
-            imgs, x_noise = self.prepare_data(data, targets, is_training=False)
+            imgs, x_noise = self.prepare_data(data, targets, is_training=False) #imgs: 16개의 rgb frame(snippet)
             self.model.eval()
 
             pred = self.sample_image(x_noise, img=imgs) #여기까지 옴
@@ -852,35 +854,38 @@ class DiffusionTrainer(object):
         args, config = self.args, self.config
 
         json_path = "cfgs/dataset.json"
-        with open(json_path) as fp:
+        with open(json_path) as fp: #json_path에 지정된 파일을 연다. 
             data_config = json.load(fp)
 
-        split_list = ["split1", "split2", "split3"]
+        split_list = ["split4"]
         for split in split_list:
             data_config["index"] = split
             weight_path = "{}_weights".format(split)
-            weight_path = os.path.join(args.root_path, weight_path)
+            weight_path = os.path.join(args.root_path, weight_path) #사전 학습 가중치 위치
 
             result_path = f"{split}_results"
-            result_path = os.path.join(args.root_path, result_path)
+            result_path = os.path.join(args.root_path, result_path) #결과 저장 폴더
             os.makedirs(result_path, exist_ok=True)
 
-            test_logger = Logger(
+            test_logger = Logger(#로거가 필요하진 않을 듯?
                 result_path + ".log",
                 ["epoch", "total_step", "loss", "main", "cc", "sim", "nss"],
             )
 
-            args.pretrain_path = os.path.join(weight_path, "best.pth")
+            args.pretrain_path = os.path.join(weight_path, "best.pth") #사전 학습 가중치. 
             if args.pretrain_path.strip() != "":
-                states = torch.load(
+                states = torch.load( #가중치 불러온다.
                     args.pretrain_path, map_location=torch.device("cpu")
                 )
                 msg = self.model.load_state_dict(states["state_dict"], strict=0)
-                print("testing: {}/{}".format(args.pretrain_path, msg))
+                print("testing: {}/{}".format(args.pretrain_path, msg)) #가중치 정보 출력
 
             name_list = ["main", "cc", "sim", "nss", "total"]
             loss_metrics = AverageMeterList(name_list=name_list)
             test_loader = get_test_av_loader(args, data_config)
+
+            print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!Total number of batches in test_loader: {len(test_loader)}")
+
 
             for i, (data, targets) in enumerate(test_loader):
                 imgs, x_noise = self.prepare_data(data, targets, is_training=False)
@@ -890,24 +895,24 @@ class DiffusionTrainer(object):
                 pred = self.sample_image(x_noise, img=imgs, audio=audio)
                 pred = inverse_data_transform(config, pred)
 
-                total_loss = get_kl_cc_sim_loss_wo_weight(
-                    config, pred, targets["salmap"].to(pred.device)
-                )
-                loss_metrics.update(total_loss)
+                # total_loss = get_kl_cc_sim_loss_wo_weight(
+                #     config, pred, targets["salmap"].to(pred.device)
+                # )
+                # loss_metrics.update(total_loss)
 
-                if self.args.rank == 0 and i % self.config.training.log_freq == 1:
-                    self.print_val_info(
-                        epoch,
-                        i,
-                        test_loader,
-                        0,
-                        loss_metrics,
-                        is_print=True,
-                        logger=None,
-                    )
+                # if self.args.rank == 0 and i % self.config.training.log_freq == 1:
+                #     self.print_val_info(
+                #         epoch,
+                #         i,
+                #         test_loader,
+                #         0,
+                #         loss_metrics,
+                #         is_print=True,
+                #         logger=None,
+                #     )
 
                 if save_img:
-                    self.save_img(data, pred, result_path, av_data=True)
+                    self.save_img_av(data, pred, result_path, av_data=True)
 
             if test_logger != None and args.rank == 0:
                 self.print_val_info(
@@ -930,8 +935,18 @@ class DiffusionTrainer(object):
         """
         # print("data!!!", data.items())
         video_ids = data["video_index"]
-        frame_ids = data["video_id"]
-        print("id!! ", data["video_id"])
+        first_frame_ids = data["first_video_id"]
+        last_frame_ids = data["last_video_id"]
+        indices = data["indices"]
+        print("indices: ", data["indices"])
+        print("first: ", first_frame_ids)
+        print("last: ", last_frame_ids)
+
+        first_elements = [ast.literal_eval(item)[0] for item in indices]
+
+        print("first: ", first_elements)
+
+
         # print("video_ids: ", video_ids)
   
         # gt_indexes = data["gt_index"].cpu().numpy()
@@ -951,13 +966,69 @@ class DiffusionTrainer(object):
 
         # assert pred.shape[0] == len(video_ids) == len(gt_indexes)
 
-        assert pred.shape[0] == len(video_ids) == len(frame_ids)
-        for i, (img, vid, fid) in enumerate(zip(pred, video_ids, frame_ids)):
+        assert pred.shape[0] == len(video_ids) == len(last_frame_ids)
+        for i, (img, vid, fid) in enumerate(zip(pred, video_ids, last_frame_ids)):
             if av_data:
                 vid = str(
                     data_convert_dict[vid.split("/")[0]] + "/" + vid.split("/")[-1]
                 )
                 img_name = "pred_sal_{0:06d}.jpg".format(int(gid))
+            else:
+                vid = str(vid)
+                # img_name = str(int(gid)) + ".png"
+                img_name = "img{}-{}".format(str(first_elements[i]).zfill(5), str(fid))
+                # img_name = str(fid)
+            print("img_name: ",img_name)
+            save_path = os.path.join(save_root, vid)
+            print("save path: ", save_path)
+            os.makedirs(save_path, exist_ok=True)
+            sal_img = normalize_data(img.transpose(1, 2, 0))
+            cv2.imwrite("{}/{}".format(save_path, img_name), sal_img)
+            print("save ok")
+
+    def save_img_av(self, data, pred, save_root, av_data=False):
+        """Save the predicted data according to the data reading mode of dhf1k
+
+        Args:
+            data (_type_): _description_
+            pred (_type_): _description_
+            save_path (_type_): _description_
+        """
+        # print("data!!!", data.items())
+        video_ids = data["video_index"]
+        print("video index@@@@@!! ", data["video_index"]) #['MEmoR/S01E01_036', 'MEmoR/S01E01_027', 'MEmoR/S01E01_020', 'MEmoR/S01E01_008']
+        frame_ids = data["video_id"]
+        print("video id!! ", data["video_id"]) #['S01E01_036', 'S01E01_027', 'S01E01_020', 'S01E01_008']
+        print("first: ", data["first_frame_id"])
+        print("first: ", data["last_frame_id"])
+        print("KEY :", data.keys())
+        # print("video_ids: ", video_ids)
+  
+        # gt_indexes = data["gt_index"].cpu().numpy()
+        pred = pred.detach().cpu().numpy()
+        
+        # gt_indexes = gt_indexes.reshape(pred.shape[0], 1)
+
+        if av_data:
+            data_convert_dict = {
+                "AVAD": "avad",
+                "Coutrot_db1": "coutrot1",
+                "Coutrot_db2": "coutrot2",
+                "DIEM": "diem",
+                "ETMD_av": "etmd",
+                "SumMe": "summe",
+                "MEmoR": "memor",
+            }
+
+        # assert pred.shape[0] == len(video_ids) == len(gt_indexes)
+
+        assert pred.shape[0] == len(video_ids) == len(frame_ids)
+        for i, (img, vid, fid) in enumerate(zip(pred, video_ids, frame_ids)):
+            if av_data:
+                vid = str(
+                    data_convert_dict[vid.split("/")[0]] + "/" + vid.split("/")[-1] #memor/비디오 이름
+                )
+                img_name = "pred_sal_img{}-{}.jpg".format(data["first_frame_id"][i].zfill(5), data["last_frame_id"][i].zfill(5))
             else:
                 vid = str(vid)
                 # img_name = str(int(gid)) + ".png"

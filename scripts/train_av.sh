@@ -1,6 +1,6 @@
 batch_size=4
-gpu_ids=0,1,2,3
-gpu_num=4
+gpu_ids=0,1
+gpu_num=2
 n_threads=4
 lr=1e-4
 n_epochs=3
@@ -22,7 +22,7 @@ CUDA_VISIBLE_DEVICES=$gpu_ids python -m torch.distributed.run --nproc_per_node=$
     --lr_scheduler MultiStepLR \
     --name $experiment_name \
     --root_path ${base_path} \
-    --train \
+    --test \
     --pretrain_path experiments_on_dhf1k/visual/weights/best.pth
     # --test
 

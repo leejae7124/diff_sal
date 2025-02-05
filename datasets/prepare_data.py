@@ -42,24 +42,28 @@ def get_val_loader(opt):
     print(f"using {config_file.data_type} val dataset!")
     return val_loader #검증 데이터를 배치 단위로 처리할 수 있도록 준비
 
-def get_av_testset(data_config, is_training=True): 
-    cur_index = data_config["index"] 
-    cur_data = data_config["dataset"] 
-    assert data_config["dataset"] in ['diem', 'coutrot1', 'coutrot2', 'summe', 'etmd', 'avad'] 
+def get_av_testset(data_config, is_training=True): #data_config: json file
+    cur_index = data_config["index"] #split1
+    cur_data = data_config["dataset"] #diem
+    assert data_config["dataset"] in ['diem', 'coutrot1', 'coutrot2', 'summe', 'etmd', 'avad', 'memor'] 
     flag = "test"
-    print('Creating {} dataset: {}/{}'.format(flag, cur_index,  data_config["dataset"]))
+    print('Creating {} dataset: {}/{}'.format(flag, cur_index,  data_config["dataset"])) #'Creating test dataset: split1/diem
 
     dataset = saliency_db_spec(
 		data_config,
-		data_config["video_path_{}".format(cur_data)],
-		data_config[cur_index]["annotation_path_{}_{}".format(cur_data, flag)],
-		data_config["salmap_path_{}".format(cur_data)],
+		data_config["video_path_{}".format(cur_data)], #video_path_diem:"./data/video_frames/DIEM". 이게 root_path
+		data_config[cur_index]["annotation_path_{}_{}".format(cur_data, flag)], #이거 지우면 안 됨
+		data_config["salmap_path_{}".format(cur_data)], #이게 subset인가?
 		data_config["audio_path_{}".format(cur_data)],
 		with_audio=data_config['with_audio'],
 		use_spectrum=data_config["use_spectrum"],
 		audio_type=data_config['audio_type'],
 		exhaustive_sampling=True,
   		sample_duration=data_config["sample_duration"]) 
+    print(f"cur_index: {cur_index}, cur_data: {cur_data}, flag: {flag}")
+    print(f"Expected key: annotation_path_{cur_data}_{flag}")
+    print(f"Full key path: {cur_index} -> annotation_path_{cur_data}_{flag}")
+
 
     return dataset
 
@@ -84,8 +88,9 @@ def get_av_dataset(data_config, is_training=True):
 
     return dataset
 
-dataset_names = ['diem', 'coutrot1', 'coutrot2', 'summe', 'etmd', 'avad']
-def get_test_av_loader(opt, data_config):
+# dataset_names = ['diem', 'coutrot1', 'coutrot2', 'summe', 'etmd', 'avad', 'memor']
+dataset_names = ['memor']
+def get_test_av_loader(opt, data_config): #data_config: json 파일
     dataset_list = []
     for name in dataset_names:
         data_config["dataset"] = name
@@ -98,11 +103,16 @@ def get_test_av_loader(opt, data_config):
                                         batch_size=opt.batch_size,
                                         shuffle=False,
                                         num_workers=opt.n_threads,
-                                        drop_last=True,
+                                        drop_last=False,
                                         pin_memory=False,
                                         sampler=val_sampler,
                                         persistent_workers=opt.n_threads>0)
     print(f"dist: {opt.multiprocessing_distributed}, using saliency audio-visual test dataset!")
+    print(f"Total samples in dataset: {len(dataset)}")
+    print(f"Total samples in dataset: {len(dataset)}")
+
+
+
     return val_loader
 
 

@@ -1,6 +1,7 @@
 import torch
 import torch.utils.data as data
 from PIL import Image, ImageFile
+from pprint import pprint
 import os, json
 import functools
 import copy
@@ -85,6 +86,9 @@ def read_sal_text(txt_file):
             test_list['names'].append(word[0])
             test_list['nframes'].append(word[1])
             test_list['fps'].append(word[2])
+    print(f"Loaded annotation file: {txt_file}")
+    print(f"Total videos found: {len(test_list['names'])}")
+
     return test_list
 
 def make_dataset(root_path, annotation_path, salmap_path, audio_path, step,
@@ -95,19 +99,29 @@ def make_dataset(root_path, annotation_path, salmap_path, audio_path, step,
     video_fps = data['fps']
     dataset = []
     audiodata = []
+
+    print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Root path: {root_path}")
+    print(f"Annotation path: {annotation_path}")
+    print(f"Saliency map path: {salmap_path}")
+    print(f"Audio path: {audio_path}")
+
     for i in range(len(video_names)):
         video_path = os.path.join(root_path, video_names[i])
         annot_path = os.path.join(salmap_path, video_names[i], 'maps')
         annot_path_bin = os.path.join(salmap_path, video_names[i])
         if not os.path.exists(video_path):
+            print(f"Video path does not exist: {video_path}")
             continue
         if not os.path.exists(annot_path):
+            print(f"Saliency map path does not exist: {annot_path}")
             continue
         if not os.path.exists(annot_path_bin):
+            print(f"Binary saliency map path does not exist: {annot_path_bin}")
             continue
 
         n_frames = int(video_nframes[i])
         if n_frames <= 1:
+            print(f"Video {video_names[i]} has insufficient frames: {n_frames}")
             continue
 
         begin_t = 1
@@ -116,7 +130,9 @@ def make_dataset(root_path, annotation_path, salmap_path, audio_path, step,
         audio_wav_path = os.path.join(audio_path, video_names[i],
                                       video_names[i] + '.wav')
         if not os.path.exists(audio_wav_path):
+            print(f"Audio file does not exist: {audio_wav_path}")
             continue
+        print(f"Loaded video: {video_names[i]}, Frames: {n_frames}, FPS: {video_fps[i]}")
 
         target_Fs = 16000
         [audiowav, Fs] = torchaudio.load(audio_wav_path)
@@ -171,23 +187,30 @@ def make_dataset(root_path, annotation_path, salmap_path, audio_path, step,
     return dataset, audiodata
 
 def make_mel_dataset(root_path, annotation_path, salmap_path, audio_path, step,
-                     step_duration):
+                     step_duration): #root_path: "./data/video_frames/DIEM"
     data = read_sal_text(annotation_path)
     video_names = data['names']
     video_nframes = data['nframes']
     video_fps = data['fps']
     dataset = []
     audiodata = []
+
+    print(f"Root path: {root_path}")
+    print(f"Annotation path: {annotation_path}")
+    print(f"Saliency map path: {salmap_path}")
+    print(f"Audio path: {audio_path}")
+
     for i in range(len(video_names)):
         video_path = os.path.join(root_path, video_names[i])
-        annot_path = os.path.join(salmap_path, video_names[i], 'maps')
-        annot_path_bin = os.path.join(salmap_path, video_names[i])
+        annot_path = None
+        annot_path_bin = None
         if not os.path.exists(video_path):
+            print(f"[Skipping] Video path does not exist: {video_path}")
             continue
-        if not os.path.exists(annot_path):
-            continue
-        if not os.path.exists(annot_path_bin):
-            continue
+        # if not os.path.exists(annot_path):
+        #     continue
+        # if not os.path.exists(annot_path_bin):
+        #     continue
 
         n_frames = int(video_nframes[i])
         if n_frames <= 1:
@@ -196,18 +219,22 @@ def make_mel_dataset(root_path, annotation_path, salmap_path, audio_path, step,
         begin_t = 1
         end_t = n_frames
 
-        audio_wav_path = os.path.join(audio_path, video_names[i],
+        audio_wav_path = os.path.join(audio_path,
                                       video_names[i] + '.wav')
+        if not os.path.exists(video_path):
+            print(f"[Skipping] Video path does not exist: {video_path}")
+            continue
         if not os.path.exists(audio_wav_path):
+            print(f"[Skipping] Audio file does not exist: {audio_wav_path}")
             continue
 
         audiowav, Fs = sf.read(audio_wav_path, dtype='int16')
         assert audiowav.dtype == np.int16, 'Bad sample type: %r' % audiowav.dtype
         audiowav = audiowav / 32768.0
 
-        n_samples = Fs / float(video_fps[i])
-        starts = np.zeros(n_frames + 1, dtype=int)
-        ends = np.zeros(n_frames + 1, dtype=int)
+        n_samples = Fs / float(video_fps[i]) #프레임 당 오디오 샘플 수 계산
+        starts = np.zeros(n_frames + 1, dtype=int) #시작 인덱스
+        ends = np.zeros(n_frames + 1, dtype=int) #종료 인덱스
         starts[0] = 0
         ends[0] = 0
         for videoframe in range(1, n_frames + 1):
@@ -246,6 +273,8 @@ def make_mel_dataset(root_path, annotation_path, salmap_path, audio_path, step,
             sample_j['frame_indices'] = list(
                 range(j, min(n_frames + 1, j + step_duration)))
             dataset.append(sample_j)
+    print(f"Total dataset samples: {len(dataset)}")
+    print(f"Total audio samples: {len(audiodata)}")
 
     print('dataset loading [{}/{}] successfully!'.format(i+1, len(video_names)))
 
@@ -255,14 +284,14 @@ class saliency_db_spec(data.Dataset):
     def __init__(self,
                  data_config,
                  root_path,
-                 annotation_path,
-                 subset,
+                 annotation_path, #이거 json 파일 인덱스임
+                 subset, #이거 손봐야 함
                  audio_path,
-                 with_audio=False,
+                 with_audio=False, #오디오를 사용할 것인지
                  exhaustive_sampling=False,
-                 use_spectrum=False,
+                 use_spectrum=False, #스펙트럼으로 변환할 것인지?
                  audio_type="ori",
-                 sample_duration=16,
+                 sample_duration=16, #하나의 비디오 샘플이 가질 프레임 수 또는 시간 길이?
                  step_duration=90,
                  get_loader=get_default_video_loader): 
 
@@ -316,10 +345,14 @@ class saliency_db_spec(data.Dataset):
                                  sample_duration)
 
     def __getitem__(self, index):
+        # print("index: ", index)
         path = self.data[index]['video']
-        annot_path = self.data[index]['salmap']
+        # print("path ", path)
+        # annot_path = self.data[index]['salmap']
 
         frame_indices = self.data[index]['frame_indices']
+        print("indice: ", frame_indices)
+
         if self.temporal_transform is not None:
             frame_indices = self.temporal_transform(frame_indices)
 
@@ -335,7 +368,7 @@ class saliency_db_spec(data.Dataset):
         if not flagexists:
             print(video_name)
 
-        data = {'rgb': [], 'audio': []}
+        data = {'rgb': [], 'audio': [], 'video_id': video_name}
         # get audio 
         frame_ind_start = frame_indices[0]  # start index
         frame_ind_end = frame_indices[len(frame_indices) - 1]  # end index
@@ -372,28 +405,36 @@ class saliency_db_spec(data.Dataset):
             med_indices = int(med_indices.to_integral_value())
 
         target = {'salmap': []}
-        target['salmap'] = pil_loader_sal(
-            os.path.join(annot_path, 'eyeMap_{:05d}.jpg'.format(med_indices)))
+        # target['salmap'] = pil_loader_sal(
+        #     os.path.join(annot_path, 'eyeMap_{:05d}.jpg'.format(med_indices)))
         if self.exhaustive_sampling:
             dataset_name = path.split('/')[-2]
-            data['video_index'] = f"{dataset_name}/{self.data[index]['video_id']}"
-            data['gt_index'] = torch.tensor(med_indices)
+            data['video_index'] = f"{dataset_name}/{self.data[index]['video_id']}" #data['video_index'] = "video_001/frame_0001"
+            # pprint(data)
+            # data['gt_index'] = torch.tensor(med_indices)
 
         clip = self.loader(path, frame_indices)
+        
         if self.spatial_transform is not None:
             self.spatial_transform.randomize_parameters()
             self.spatial_transform_sal = copy.deepcopy(self.spatial_transform)
             del self.spatial_transform_sal.transforms[-1]
             clip = [self.spatial_transform(img) for img in clip]
 
-        target['salmap'] = self.target_transform(target['salmap'])
-        if target['salmap'].max()==0:
-            tmp_index = np.random.randint(0,index-1)
-            return self.__getitem__(tmp_index)
+        target['salmap'] = 0 #test라서 수정
+        # if target['salmap'].max()==0:
+        #     tmp_index = np.random.randint(0,index-1)
+        #     return self.__getitem__(tmp_index)
 
         clip = torch.stack(clip, 0).permute(1, 0, 2, 3)
 
+        if clip.shape[1] < 16:
+            print(f"Skipping clip with insufficient frames: {clip.shape}")
+            return self.__getitem__((index + 1) % len(self.data))  # 다음 샘플로 넘어감
+
         data['rgb'] = clip
+        data['first_frame_id'] = str(frame_ind_start)
+        data['last_frame_id'] = str(frame_ind_end)
 
         return data, target
 

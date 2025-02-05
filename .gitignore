@@ -22,3 +22,6 @@ data
 data/*
 
 *.pth
+*.jpg
+*.wav
+*.mp4

@@ -28,6 +28,7 @@ class MEmoRDataset(MetaDataset):
                 tmp_video_len = len(os.listdir(os.path.join(self.path_data, v, "images")))
                 for i in range(0, tmp_video_len - self.alternate * self.len_snippet, self.skip_window):
                     self.list_num_frame.append((v, i))
+                
         else:
             self.path_data = os.path.join(self.path_data, "testing") #경로 설정
             self.list_num_frame = []
@@ -39,6 +40,7 @@ class MEmoRDataset(MetaDataset):
                 for i in range(0, tmp_video_len - self.alternate * self.len_snippet, gt_length): #비디오 길이 초과하지 않을 때까지만.
                     self.list_num_frame.append((v, i))
                 self.list_num_frame.append((v, tmp_video_len - self.len_snippet))
+                print("list num frame: ", self.list_num_frame)
                 self.list_video_frames[v] = tmp_video_len
 
         print(f"MEmoR {mode} dataset loaded! {len(self.list_num_frame)} data items!")
@@ -66,9 +68,12 @@ class MEmoRDataset(MetaDataset):
             # print("indices: ", indices, file_name)
         else:
             indices = [start_idx + self.alternate * i for i in range(self.len_snippet) ]
-            
+        # print("start index: ", start_idx)
+        # print("indices: ", indices)
         clip_img = []
         img_list = sorted(os.listdir(path_clip))
+        first_img_name = img_list[0]
+        # print("img_list: ", img_list)
         # print(len(img_list), path_clip)
         for i in indices:
             img_name = img_list[i]
@@ -95,9 +100,12 @@ class MEmoRDataset(MetaDataset):
             clip_gt = gt_maps
 
         data['rgb'] = clip_img
-        data["video_id"] = img_name
+        data['first_video_id'] = first_img_name
+        data["last_video_id"] = img_name
+        data['indices'] = str(indices)
+
+        print("indices1 : ", indices)
         data["video_index"] = file_name     # 用于预测
-        # print("id, index : ", data["video_id"], data["video_index"])
         if self.mode != "test":
             data["gt_index"] = torch.tensor(gt_sequence_list)
 

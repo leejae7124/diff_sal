@@ -28,7 +28,7 @@ config = dict(
     visual_net=dict(
         type=MViT,
         arch="small",
-        pretrained="/mnt/data4_8T/datasets/STAViS/data/pretrained_models/mvit-small-p244_16x4x1_kinetics400-rgb.pth",
+        pretrained="/home/leessu/code/diff_sal/mvit-small-p244_16x4x1_kinetics400-rgb_20221021-9ebaaeed.pth", #수정 필!!!!!!!!!!!!!!
         out_scales=[0, 1, 2, 3],
     ),
     spatiotemp_net=dict(
